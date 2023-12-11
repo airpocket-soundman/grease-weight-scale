@@ -6,7 +6,7 @@ grease_weight_scale
 ## devices
 M5Stack Basic
 HX711
-1kg loadsells
+1kg loadcell
 
 ## housing
 3D printed parts

@@ -45,7 +45,6 @@ bool      flag_mesure         = true;                             // 判定を�
 bool      flag_stable         = false;
 uint32_t  counter             =    0;
        
-
 // EEPROMサイズとアドレスの設定
 #include <EEPROM.h>
 #define EEPROM_MEM_SIZE       100
@@ -279,27 +278,6 @@ void read_weight(){     // 重量を測定し、weight_listに追加。weight_li
   weight_raw = 0.0;
   weight_list_filter();
   
-  /*
-  for (int i = 0; i < WEIGHT_LIST_VALID_NUM; ++i){
-    Serial.print("list[");
-    Serial.print(i);
-    Serial.print("] = ");
-    Serial.print(filtered_weight_list[i]);
-    Serial.print(" / "); 
-  }
-  */
-  //weight_list_ave = weight_raw / static_cast<double>(WEIGHT_LIST_NUM);
-  //Serial.println("");
-  /*
-  Serial.print(" / ave = ");
-  Serial.print(weight_list_ave);
-  Serial.print(" / center = ");
-  Serial.print(weight_list_center);
-  Serial.print(" / min = ");
-  Serial.print(weight_list_min);
-  Serial.print(" / max = ");
-  Serial.println(weight_list_max);
-  */
   Serial.print("max - min = ");
   Serial.println(weight_list_max - weight_list_min);
 }

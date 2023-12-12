@@ -18,21 +18,30 @@ double A = 0.0008951;
 double B = 34301;
 
 #include <M5Stack.h>
+
+// loadcellの設定
 #include "HX711.h"
-#define LOADCELL_DOUT_PIN 36
-#define LOADCELL_SCK_PIN  26
-#define WEIGHT_LIST_NUM 5
+#define LOADCELL_DOUT_PIN 36                                  // HX711 DOUT端子接続PIN番号
+#define LOADCELL_SCK_PIN  26                                  // HX711 SCK端子接続PIN番号
+#define WEIGHT_LIST_VALID_NUM 5                               // 重量判定の有効要素数
+#define WEIGHT_LIST_ELIMINATE_NUM_UPPER 3                     // 上側外れ値除外数
+#define WEIGHT_LIST_ELIMINATE_NUM_LOWER 3                     // 下側外れ値除外数
+#define WEIGHT_LIST_NUM = WEIGHT_LIST_VALID_NUM + WEIGHT_LIST_ELIMINATE_NUM_UPPER + WEIGHT_LIST_ELIMNATE_NUM_LOWER
+
 HX711 scale;
-double weight_list[WEIGHT_LIST_NUM] = {0.0};      //
-double weight_list_ave    = 0.0;                  //
-double weight_list_max    = 0.0;                  //
-double weight_list_min    = 0.0;                  //
-double stable_threshold   = 1.0;                  //
-double zero_reset_value   = 0.0;                  //
-double weight_stable      = 0.0;                  //
-double weight_prev        = 0.0;                  //
-bool   flag_stable        = false;                //
-double seight_diff        = 0.0;                  //
+double weight_list[WEIGHT_LIST_NUM] = {0.0};                  // 重量測定結果のリスト
+double filtered_weight_list[WEIGHT_LIST_VALID_NUM] = {0.0};   // 重量測定結果を降順にsortしたリスト
+double weight_list_ave    =  0.0;                             // filtered_weight_listの平均値
+double weight_list_center =  0.0;                             // filtered_weight_listの中央値
+double weight_list_max    =  0.0;                             // filtered_weight_listの最大値
+double weight_list_min    =  0.0;                             // filtered_weight_listの最小値
+double zero_reset_value   =  0.0;                             // tareをした際のweight_list_center
+double weight_prev        =  0.0;                             // 前回の軽量合格時のweight_list_center
+double weight_diff        =  0.0;                             // weight_prevとweight_list_centerの差
+double threshold_stable   =  1.0;                             // 安定を判定するための閾値　許容するweight_list_max,minの差を設定
+double threshold_mesure   = 10.0;                             // 測定皿に計測対象物が乗っているかどうかを判定する閾値
+bool   flag_stable        = false;                            // 安定したかどうかの状態を示すフラグ
+
        
 
 // EEPROMサイズとアドレスの設定
@@ -41,20 +50,20 @@ double seight_diff        = 0.0;                  //
 #define ADDR_THRE_WEIGHT      0x00
 
 // 閾値設定
-#define THRESHOLD_WEIGHT_DEFO 3.0
-double threshold_weight = 3.0;
+#define THRESHOLD_WEIGHT_DEFO 3.0                           //グリス塗布量良否判定の初期値　3.0g
+double threshold_weight = THRESHOLD_WEIGHT_DEFO;          
 
-
+// loyanGFXの導入
 #define LGFX_M5STACK
-
 #include <LovyanGFX.hpp>
-#include <LGFX_AUTODETECT.hpp>  // クラス"LGFX"を準備します
-static LGFX lcd;                 // LGFXのインスタンスを作成。
-static LGFX_Sprite sprite(&lcd); // スプライトを使う場合はLGFX_Spriteのインスタンスを作成。
+#include <LGFX_AUTODETECT.hpp>    // クラス"LGFX"を準備します
+static LGFX lcd;                  // LGFXのインスタンスを作成。
+static LGFX_Sprite sprite(&lcd);  // スプライトを使う場合はLGFX_Spriteのインスタンスを作成。
 
+//display layout
 uint16_t title_rect_pos[4]       = {   0,   0, 320, 20};   //{x, y, w, h}
 uint16_t status_circle_pos[3]    = { 240, 110,  60};       //{x, y, r,} 
-uint16_t title_pos[2]            = {   2,   2};
+uint16_t title_pos[2]            = {   2,   2};            //{x, y}
 uint16_t net_weight_pos[2]       = {  15,  35};
 uint16_t diff_pos[2]             = {  15,  78};
 uint16_t count_label_pos[2]      = {  20, 162};
@@ -113,9 +122,10 @@ void setup() {
   lcd.setCursor(threshold_unit_pos[0],    threshold_unit_pos[1]);
   lcd.print("g");
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);       //HX711初期化
-
-
 }
+
+
+
 
 void loop() {
   read_weight();
@@ -157,6 +167,22 @@ void read_weight(){
 
 }
 
+
+void weight_list_filter(){
+  double sorted_weight_list[WEIGHT_LIST_NUM] = {0.0};
+  for (int i = 0; i < WEIGHT_LIST_NUM; i++){
+    sorted_weight_list[i] = weight_list[0];
+  }
+  sorted_weight_list[WEIGHT_LIST_NUM] = weight_list[0];
+  for (int i; i = 0; i < WEIGHT_LIST_NUM - 1; i++){
+    for (int j; j = 0; j < WEIGHT_LIST_NUM - i - 1; j++){
+      if (sorted_weight_list[j] > sorted_weight_list[j + i]){
+        double temp = sorted_weight_list[j];
+        sorted_weight_list[j] = sorted_weight_list[j + 1]
+      }
+    } 
+  }
+}
 
 void readThreshold(){                                      //閾値読み込み。EEPROMが空の場合、デフォルト値を記録
   String read_data;

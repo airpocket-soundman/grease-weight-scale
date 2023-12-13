@@ -11,7 +11,6 @@ HX711
 ## housing
 3D printed parts
 
-
 ## other parts
 
 ### stripbord
@@ -27,11 +26,11 @@ XH2.54 4P mail,female x 1set
 
 
 ### screws
-M6x20 x 4 ロードセル固定用
-M3x20 x 4 bottom
-m3x20 x 4 top
-m3x20 x 4 guide
-
+M5x15 x 2 ロードセル固定用
+M4x15 x 2 plate固定用
+m3x10 x 4 top固定用
+m3x10 x 4 guide固定用
+m2x10 x 4 基板固定用
 
 # Software
 
@@ -40,9 +39,18 @@ Ver 3.0.0 ArduinoIDE版へ移行
 
 # schematic
 
-|m5stack|HX711|
+## M5Stack to HX711
+|M5Stack|HX711|
 |-|-|
 |5V|VCC|
 |GND|GND|
 |36|DT|
 |26|SCK|
+
+## HX711 to Loadcell
+|HX711|Loadcell|
+|-|-|
+|E+|RED|
+|E-|BLACK|
+|A-|WHITE|
+|A+|GREEN|

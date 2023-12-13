@@ -14,8 +14,8 @@ String        device_number       = "S03";
 String        Title_str           = "SCALE                  ID : " + device_number + "    Ver : " + version;
 
 // 重量計算用定数
-double A = 0.0008951;
-double B = 34301;
+double A                          = 0.0008951;
+double B                          = 580.47; //34301
 
 #include <M5Stack.h>
 
@@ -23,9 +23,10 @@ double B = 34301;
 #include "HX711.h"
 #define LOADCELL_DOUT_PIN 36                                  // HX711 DOUT端子接続PIN番号
 #define LOADCELL_SCK_PIN  26                                  // HX711 SCK端子接続PIN番号
-#define WEIGHT_LIST_VALID_NUM 7                               // 重量判定の有効要素数
-#define WEIGHT_LIST_ELIMINATE_NUM_UPPER 3                     // 上側外れ値除外数
-#define WEIGHT_LIST_ELIMINATE_NUM_LOWER 3                     // 下側外れ値除外数
+#define WEIGHT_LIST_VALID_NUM 5                               // 重量判定の有効要素数
+#define WEIGHT_LIST_ELIMINATE_NUM_UPPER 2                     // 上側外れ値除外数
+#define WEIGHT_LIST_ELIMINATE_NUM_LOWER 2                     // 下側外れ値除外数
+#define WEIGHT_LIST_CENTER_NUM 2                              // 中央値の場所
 #define WEIGHT_LIST_NUM (WEIGHT_LIST_VALID_NUM + WEIGHT_LIST_ELIMINATE_NUM_UPPER + WEIGHT_LIST_ELIMINATE_NUM_LOWER)
 
 HX711 scale;
@@ -35,6 +36,7 @@ double    weight_list_ave     =  0.0;                             // filtered_we
 double    weight_list_center  =  0.0;                             // filtered_weight_listの中央値
 double    weight_list_max     =  0.0;                             // filtered_weight_listの最大値
 double    weight_list_min     =  0.0;                             // filtered_weight_listの最小値
+double    weight_list_range   =  0.0;                             // weight_list_max - weight_list_min
 double    zero_reset_value    =  0.0;                             // tareをした際のweight_list_center
 double    weight_prev         =  0.0;                             // 前回の軽量合格時のweight_list_center
 double    weight_diff         =  0.0;                             // weight_prevとweight_list_centerの差
@@ -42,7 +44,8 @@ double    weight_gross        =  0.0;                             // weight_list
 double    threshold_stable    =  0.3;                             // 安定を判定するための閾値　許容するweight_list_max,minの差を設定
 double    threshold_mesure    = 10.0;                             // 測定皿に計測対象物が乗っているかどうかを判定する閾値
 bool      flag_mesure         = true;                             // 判定を開始しても良いかのフラグ
-bool      flag_stable         = false;
+bool      flag_stable         = false;                            // 重量が安定したかどうかのフラグ
+bool      flag_zero_reset     = true;                             // zero_reset後初回のみ処理するためのフラグ
 uint32_t  counter             =    0;
        
 // EEPROMサイズとアドレスの設定
@@ -61,9 +64,9 @@ double threshold_weight = THRESHOLD_WEIGHT_DEFO;
 static LGFX lcd;                  // LGFXのインスタンスを作成。
 static LGFX_Sprite sprite(&lcd);  // スプライトを使う場合はLGFX_Spriteのインスタンスを作成。
 
-//display layout
+// display layout
 uint16_t title_rect_pos[4]        = {   0,   0, 320, 20};   //{x, y, w, h}
-uint16_t status_circle_pos[3]     = { 260, 128,  55};       //{x, y, r,} 
+uint16_t status_circle_pos[3]     = { 265, 128,  52};       //{x, y, r,} 
 uint16_t title_pos[2]             = {  10,   2};            //{x, y}
 uint16_t gross_weight_pos[2]      = { 120,  35};
 uint16_t diff_weight_pos[2]       = {  10,  68};
@@ -118,12 +121,29 @@ void loop() {
   String write_data;
   M5.update();
   read_weight();
+  /*
+  Serial.print("center = ");
+  Serial.print(weight_list_center);
+  Serial.print(" / range = ");
+  Serial.print(weight_list_range);
+  Serial.print(" / weight_diff = ");
+  Serial.print(weight_diff);
+  Serial.print(" / weight_prev = ");
+  Serial.print(weight_prev);
+  Serial.print(" / flag_mesure = ");
+  Serial.print(flag_mesure);
+  Serial.print(" / flag_zero_reset = ");
+  Serial.println(flag_zero_reset);
+  */
   judge_stable();
-  weight_show();
+  weight_gross_show();  
+  counter_show();
+  
 
   if (M5.BtnA.wasPressed() || m5.BtnA.wasReleased()) btn_label_show(); 
   if (M5.BtnB.wasPressed() && m5.BtnA.isReleased()) {
     zero_reset_value = weight_list_center;
+    flag_zero_reset = true;
     flag_mesure = true;
   }
   if (M5.BtnC.wasPressed() && m5.BtnA.isReleased()) {
@@ -145,33 +165,40 @@ void loop() {
     EEPROM.commit();
     threshold_show();
   }
-  Serial.print(flag_stable);
-  //delay(100);
 }
 
 void judge_stable(){
-  weight_gross = weight_list_center - zero_reset_value;
-  weight_diff = weight_prev - weight_list_center;
-  if (weight_gross >= threshold_mesure){
-    if (weight_list_max - weight_list_min <= threshold_stable){
+
+  if (weight_gross >= threshold_mesure){                                // モノが載っているときの処理
+    if (weight_list_range <= threshold_stable){           // 重量が安定している場合の処理          
       flag_stable = true;
-      if (flag_mesure == true){
-        if (weight_diff >= threshold_weight){
-          lcd.fillCircle(status_circle_pos[0], status_circle_pos[1], status_circle_pos[2], TFT_DARKGREEN);
+      if (flag_zero_reset == true){                                         // zero_reset後一度だけの処理weight_prevによらずgreen表示
+        flag_zero_reset = false;
+        lcd.fillCircle(status_circle_pos[0], status_circle_pos[1], status_circle_pos[2] - 1, TFT_DARKGREEN);
+        lcd.drawCircle(status_circle_pos[0], status_circle_pos[1], status_circle_pos[2], TFT_WHITE);
+        weight_prev = weight_list_center;
+        flag_mesure = false;
+      }
+      if (flag_mesure == true){                                             // 一度ものを下ろした場合の処理
+        if (weight_diff >= threshold_weight){                                 // 重量差が閾値以上の場合
+          lcd.fillCircle(status_circle_pos[0], status_circle_pos[1], status_circle_pos[2] - 1, TFT_DARKGREEN);
           lcd.drawCircle(status_circle_pos[0], status_circle_pos[1], status_circle_pos[2], TFT_WHITE);
-          weight_prev = weight_diff;
-        } else {
-          lcd.fillCircle(status_circle_pos[0], status_circle_pos[1], status_circle_pos[2], TFT_RED);
+          weight_prev = weight_list_center;
+          weight_diff_show();
+          counter += 1;
+        } else {                                                              // 重量差が閾値未満の場合　
+          lcd.fillCircle(status_circle_pos[0], status_circle_pos[1], status_circle_pos[2] - 1, TFT_RED);
           lcd.drawCircle(status_circle_pos[0], status_circle_pos[1], status_circle_pos[2], TFT_WHITE);
+          weight_diff_show();
         }
         flag_mesure = false;
       } 
-    } else {
+    } else {                                                              // 重量が安定していない場合の処理
       flag_stable = false;
     }
-  } else {
+  } else {                                                              // モノが載っていないときの処理
     flag_mesure = true;
-    lcd.fillCircle(status_circle_pos[0], status_circle_pos[1], status_circle_pos[2] - 2, TFT_BLACK);
+    lcd.fillCircle(status_circle_pos[0], status_circle_pos[1], status_circle_pos[2] - 1, TFT_BLACK);
     lcd.drawCircle(status_circle_pos[0], status_circle_pos[1], status_circle_pos[2], TFT_WHITE);
   }
 }
@@ -190,7 +217,7 @@ void threshold_show(){
   lcd.printf("/ %.1f g   ",threshold_weight);
 }
 
-void weight_show(){
+void weight_gross_show(){
   lcd.setTextColor(TFT_DARKGREY, TFT_BLACK);
   lcd.setFont(&fonts::Font4);
   lcd.setCursor(gross_weight_pos[0], gross_weight_pos[1]);
@@ -202,16 +229,16 @@ void weight_show(){
     weight_gross *= -1.0;
   }
   if (100.0 <= weight_gross && weight_gross < 1000.0) {
-    lcd.print("   ");
+    lcd.print("    ");
     lcd.setCursor(gross_weight_pos[0] + 14, gross_weight_pos[1]);
   } else if (10.0 <= weight_gross && weight_gross < 100.0) {
-    lcd.print("     ");
+    lcd.print("      ");
     lcd.setCursor(gross_weight_pos[0] + 28, gross_weight_pos[1]);
   } else if (0.0 < weight_gross && weight_gross < 10.0) {
-    lcd.print("       ");
+    lcd.print("        ");
     lcd.setCursor(gross_weight_pos[0] + 42, gross_weight_pos[1]);
   } else if (0.0 == weight_gross) {
-    lcd.print("       ");
+    lcd.print("        ");
     weight_gross += 0.0001;   //表示桁異常対策のおまじない
     lcd.setCursor(gross_weight_pos[0] + 28, gross_weight_pos[1]);
   }
@@ -221,7 +248,9 @@ void weight_show(){
   } else {
     lcd.printf("%.1f  ", weight_gross);
   }
+}
 
+void weight_diff_show(){
   if (flag_stable == true){
     lcd.setTextColor(TFT_WHITE, TFT_BLACK);
   } else {
@@ -245,7 +274,7 @@ void weight_show(){
   }
 
   if (weight_diff >= 100.0) {
-    lcd.print("O.L.");
+    lcd.print("----");
   } else {
     lcd.printf("%.1f", weight_diff);
   }
@@ -268,18 +297,13 @@ void btn_label_show(){
 }
 
 void read_weight(){     // 重量を測定し、weight_listに追加。weight_listの平均をweight_ave,weight_listの最大をweiht_list_max,最小をweight_list_minにする
-  double weight_raw = static_cast<double>(scale.read()) * A;
-  //Serial.print("weight_raw = ");
-  //Serial.println(weight_raw);
+  double weight_raw = (static_cast<double>(scale.read()) * A) - B;
   for (int i = 0; i < WEIGHT_LIST_NUM - 1; ++i){
     weight_list[i] = weight_list[i + 1];
   }
   weight_list[WEIGHT_LIST_NUM - 1] = weight_raw;
   weight_raw = 0.0;
   weight_list_filter();
-  
-  Serial.print("max - min = ");
-  Serial.println(weight_list_max - weight_list_min);
 }
 
 void weight_list_filter(){
@@ -303,10 +327,12 @@ void weight_list_filter(){
     weight_list_ave += filtered_weight_list[i];
   }
   weight_list_ave    /= WEIGHT_LIST_VALID_NUM;
-  weight_list_center  = filtered_weight_list[2];
+  weight_list_center  = filtered_weight_list[WEIGHT_LIST_CENTER_NUM];
   weight_list_min     = filtered_weight_list[0];
   weight_list_max     = filtered_weight_list[WEIGHT_LIST_VALID_NUM - 1];
-
+  weight_gross        = weight_list_center - zero_reset_value;
+  weight_diff         = round((weight_prev - weight_list_center) * 10) / 10;
+  weight_list_range   = weight_list_max - weight_list_min;
 }
 
 void readThreshold(){   //閾値読み込み。EEPROMが空の場合、デフォルト値を記録

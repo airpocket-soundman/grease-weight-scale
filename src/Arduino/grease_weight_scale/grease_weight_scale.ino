@@ -14,8 +14,8 @@ String        device_number       = "S03";
 String        Title_str           = "SCALE                  ID : " + device_number + "    Ver : " + version;
 
 // 重量計算用定数
-double A                          = 0.0008951;
-double B                          = 580.47; //34301
+double A                          = 0.0000001 * 9412.198;   //8951
+double B                          = 669.42;                 //580.47
 
 #include <M5Stack.h>
 
@@ -234,19 +234,20 @@ void weight_gross_show(){
   } else if (10.0 <= weight_gross && weight_gross < 100.0) {
     lcd.print("      ");
     lcd.setCursor(gross_weight_pos[0] + 28, gross_weight_pos[1]);
-  } else if (0.0 < weight_gross && weight_gross < 10.0) {
+  } else if (0.0 <= weight_gross && weight_gross < 10.0) {
     lcd.print("        ");
     lcd.setCursor(gross_weight_pos[0] + 42, gross_weight_pos[1]);
-  } else if (0.0 == weight_gross) {
-    lcd.print("        ");
-    weight_gross += 0.0001;   //表示桁異常対策のおまじない
-    lcd.setCursor(gross_weight_pos[0] + 28, gross_weight_pos[1]);
   }
+  /*else if (0.0 == weight_gross) {
+    lcd.print("        ");
+    //weight_gross += 0.0001;   //表示桁異常対策のおまじない
+    lcd.setCursor(gross_weight_pos[0] + 42, gross_weight_pos[1]);
+  }*/
 
   if (weight_gross >= 1000.0) {
     lcd.print("  O.L.   ");
   } else {
-    lcd.printf("%.1f  ", weight_gross);
+    lcd.printf("%.1f    ", weight_gross);
   }
 }
 

@@ -27,9 +27,9 @@ XH2.54 4P mail,female x 1set
 
 ### screws
 M5x15 x 2 ロードセル固定用
-M4x15 x 2 plate固定用
-m3x10 x 4 top固定用
-m3x10 x 4 guide固定用
+M4x10 x 2 plate固定用
+m3x6 x 4 top固定用
+m3x6 x 4 guide固定用
 m2x10 x 4 基板固定用
 
 # Software
